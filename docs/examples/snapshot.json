@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "scout_node": "k8s-worker-1",
+  "timestamp": "2025-10-15T10:00:00Z",
+  "nodes": [
+    {
+      "name": "k8s-worker-1",
+      "ready": false,
+      "conditions": [
+        {"type": "Ready", "status": "False", "reason": "KubeletNotReady",
+         "message": "kubelet stopped posting status", "last_transition": "2025-10-15T09:50:00Z"}
+      ],
+      "cpu_usage_pct": 12.0,
+      "mem_usage_pct": 34.0,
+      "disk_usage_pct": 45.0,
+      "load_1m": 0.8,
+      "kubelet_up": false
+    }
+  ],
+  "pods": [],
+  "events": [
+    {"namespace": "default", "reason": "NodeNotReady",
+     "message": "Node k8s-worker-1 status is now: NodeNotReady",
+     "involved_kind": "Node", "involved_name": "k8s-worker-1",
+     "last_timestamp": "2025-10-15T09:50:05Z"}
+  ]
+}
