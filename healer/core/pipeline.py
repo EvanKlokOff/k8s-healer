@@ -16,7 +16,7 @@ from healer.core.schemas import (
     Decision,
     GuardrailResult,
     Incident,
-    Snapshot,
+    Snapshot, LLMMeta,
 )
 from healer.core.validators.schema import DecisionValidator
 from healer.executor.registry import get_runner
@@ -91,10 +91,11 @@ class Pipeline:
         )
 
         # 1. Diagnose
-        decision = self._diagnose(incident)
+        decision, llm_meta = self._diagnose(incident)  # <-- tuple, не Decision
         # 1.5. Enrich node_ip для SSH-действий (restart_kubelet, cleanup_images)
         self._enrich_node_ip(decision, incident, snapshot)
         record.decision = decision
+        record.llm_meta = llm_meta  # <-- новое
 
         # 2. Validate
         ok, reason = self.validator.validate(decision)
@@ -123,7 +124,9 @@ class Pipeline:
 
     # ---------- steps ----------
 
-    def _diagnose(self, incident: Incident) -> Decision:
+    def _diagnose(
+            self, incident: Incident,
+    ) -> tuple[Decision, LLMMeta | None]:
         try:
             return self.diagnoser.diagnose(incident)
         except Exception:
@@ -136,7 +139,7 @@ class Pipeline:
                 action_id="raise_alert",
                 reason="Diagnoser exception, escalating",
                 escalate=True,
-            )
+            ), None
 
     def _enrich_node_ip(
         self, decision: Decision, incident: Incident, snapshot: Snapshot,

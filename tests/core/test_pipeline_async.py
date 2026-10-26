@@ -23,8 +23,8 @@ class _FakeDiagnoser:
     def __init__(self, decision: Decision):
         self._decision = decision
 
-    def diagnose(self, incident: Incident) -> Decision:
-        return self._decision
+    def diagnose(self, incident: Incident) -> tuple[Decision, None]:
+        return self._decision, None
 
 
 class _FakeValidator:
