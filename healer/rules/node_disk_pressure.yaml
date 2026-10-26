@@ -1,8 +1,11 @@
 id: node_disk_pressure
 version: "0.1.0"
+enabled: true
 priority: 180
 incident_type: node_disk_pressure
 severity: high
+scenario_version: "0.1.0"
 condition:
   node_condition: DiskPressure
   status: "True"
+  # min_disk_usage_pct: 90    # опционально: срабатывать только если >90% (только для self_node)

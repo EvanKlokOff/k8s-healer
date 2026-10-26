@@ -1,7 +1,9 @@
 id: pod_oomkilled
 version: "0.1.0"
+enabled: true
 priority: 160
 incident_type: pod_oomkilled
 severity: medium
+scenario_version: "0.1.0"
 condition:
   last_terminated_reason: OOMKilled

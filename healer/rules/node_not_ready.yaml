@@ -1,8 +1,10 @@
 id: node_not_ready
 version: "0.1.0"
+enabled: true
 priority: 200
 incident_type: node_not_ready
 severity: high
+scenario_version: "0.1.0"
 condition:
   node_condition: Ready
   status: "False"
