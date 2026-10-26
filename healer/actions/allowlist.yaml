@@ -1,0 +1,20 @@
+actions:
+  restart_kubelet:
+    enabled: true
+    risk: high
+    max_per_node_per_hour: 1
+    requires_confidence: 0.8
+  rollout_restart:
+    enabled: true
+    risk: medium
+    max_per_deployment_per_30min: 1
+    requires_confidence: 0.7
+  cleanup_images:
+    enabled: true
+    risk: medium
+    max_per_node_per_6h: 1
+    only_if: node_disk_pressure
+    requires_confidence: 0.7
+  raise_alert:
+    enabled: true
+    risk: low

@@ -1,0 +1,8 @@
+id: node_disk_pressure
+version: "0.1.0"
+priority: 180
+incident_type: node_disk_pressure
+severity: high
+condition:
+  node_condition: DiskPressure
+  status: "True"

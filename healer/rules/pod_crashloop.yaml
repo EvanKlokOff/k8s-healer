@@ -1,0 +1,8 @@
+id: pod_crashloop
+version: "0.1.0"
+priority: 150
+incident_type: pod_crashloop
+severity: medium
+condition:
+  pod_restarts_gt: 5
+  window_sec: 600
