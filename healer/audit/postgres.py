@@ -1,3 +1,4 @@
+# healer/audit/postgres.py
 from __future__ import annotations
 
 import json
@@ -24,6 +25,10 @@ CREATE TABLE IF NOT EXISTS audit_records (
     llm_meta      JSONB,
     versions      JSONB
 );
+CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_records (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_cluster   ON audit_records (cluster_id);
+CREATE INDEX IF NOT EXISTS idx_audit_incident_type
+    ON audit_records ((incident->>'type'));
 """
 
 
@@ -32,35 +37,38 @@ class PostgresAudit(AuditSink):
         self.dsn = dsn
         self._pool: asyncpg.Pool | None = None
 
-    async def _ensure_pool(self):
+    async def _ensure_pool(self) -> asyncpg.Pool:
         if self._pool is None:
-            self._pool = await asyncpg.create_pool(self.dsn)
+            self._pool = await asyncpg.create_pool(self.dsn, min_size=1, max_size=5)
             async with self._pool.acquire() as conn:
                 await conn.execute(SCHEMA)
+            log.info("postgres audit pool ready")
         return self._pool
 
-    def record(self, record: AuditRecord) -> None:
-        # MVP: синхронная обёртка. В реальности — async в pipeline.
-        import asyncio
+    async def record(self, record: AuditRecord) -> None:
         try:
-            asyncio.get_event_loop().run_until_complete(self._record_async(record))
-        except RuntimeError:
-            log.exception("PostgresAudit.record called outside event loop")
+            pool = await self._ensure_pool()
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """INSERT INTO audit_records
+                    (record_id, timestamp, trace_id, cluster_id, snapshot_id,
+                     incident, decision, action_result, guardrails, llm_meta, versions)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                    ON CONFLICT (record_id) DO NOTHING""",
+                    record.record_id, record.timestamp, record.trace_id,
+                    record.cluster_id, record.snapshot_id,
+                    json.dumps(record.incident.model_dump(mode="json") if record.incident else None),
+                    json.dumps(record.decision.model_dump(mode="json") if record.decision else None),
+                    json.dumps(record.action_result.model_dump(mode="json") if record.action_result else None),
+                    json.dumps([g.model_dump(mode="json") for g in record.guardrails]),
+                    json.dumps(record.llm_meta.model_dump(mode="json") if record.llm_meta else None),
+                    json.dumps(record.versions),
+                )
+        except Exception:
+            # audit не должен валить pipeline — логируем и идём дальше
+            log.exception("postgres audit write failed: %s", record.record_id)
 
-    async def _record_async(self, record: AuditRecord) -> None:
-        pool = await self._ensure_pool()
-        async with pool.acquire() as conn:
-            await conn.execute(
-                """INSERT INTO audit_records
-                (record_id, timestamp, trace_id, cluster_id, snapshot_id,
-                 incident, decision, action_result, guardrails, llm_meta, versions)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)""",
-                record.record_id, record.timestamp, record.trace_id,
-                record.cluster_id, record.snapshot_id,
-                json.dumps(record.incident.model_dump(mode="json") if record.incident else None),
-                json.dumps(record.decision.model_dump(mode="json") if record.decision else None),
-                json.dumps(record.action_result.model_dump(mode="json") if record.action_result else None),
-                json.dumps([g.model_dump(mode="json") for g in record.guardrails]),
-                json.dumps(record.llm_meta.model_dump(mode="json") if record.llm_meta else None),
-                json.dumps(record.versions),
-            )
+    async def close(self) -> None:
+        if self._pool is not None:
+            await self._pool.close()
+            self._pool = None

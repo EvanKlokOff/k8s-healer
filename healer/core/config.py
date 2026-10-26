@@ -19,8 +19,12 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
     postgres_dsn: str = "postgresql://healer:healer@postgres:5432/healer"
     dry_run: bool = True
-    healer_enabled: bool = True
+    healer_enabled: bool = False  # ← MVP: выключен по умолчанию (shadow)
     confidence_threshold: float = 0.7
+
+    # --- Paths (NEW) ---
+    rules_dir: str = "healer/rules"
+    allowlist_path: str = "healer/actions/allowlist.yaml"
 
     # --- Guardrails ---
     rate_limit_per_node_per_hour: int = 1
@@ -40,7 +44,7 @@ class Settings(BaseSettings):
     telegram_chat_id: str = ""
 
     # --- Audit ---
-    audit_sinks: str = "jsonl"                    # csv: jsonl,postgres
+    audit_sinks: str = "jsonl"  # csv: jsonl,postgres
     audit_jsonl_path: str = "decisions.jsonl"
     audit_retention_days: int = 365
 

@@ -5,8 +5,10 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from starlette.responses import Response
 
-from healer.audit.jsonl import JsonlAudit
+from healer.audit.factory import build_audit
 from healer.core.config import settings
 from healer.core.dedup import Deduplicator
 from healer.core.diagnosers.llm import LLMDiagnoser
@@ -22,21 +24,29 @@ log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 _pipeline: Pipeline | None = None
+_audit = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _pipeline
-    rules = load_rules("rules")
+    global _pipeline, _audit
+    rules = load_rules(settings.rules_dir)
     diagnoser = LLMDiagnoser()
-    validator = DecisionValidator("actions/allowlist.yaml")
+    validator = DecisionValidator(settings.allowlist_path)
     guardrails = [DryRunGuardrail(), RateLimitGuardrail(), BlastRadiusGuardrail()]
-    audit = JsonlAudit(settings.audit_jsonl_path)
+    _audit = build_audit(settings)
     dedup = Deduplicator(settings.redis_url)
-    _pipeline = Pipeline(rules, diagnoser, validator, guardrails, audit, dedup)
-    log.info("Healer core started with %d rules", len(rules))
-    yield
-    log.info("Healer core stopped")
+    _pipeline = Pipeline(rules, diagnoser, validator, guardrails, _audit, dedup)
+    log.info(
+        "healer core started: rules=%d healer_enabled=%s dry_run=%s sinks=%s",
+        len(rules), settings.healer_enabled, settings.dry_run, settings.audit_sinks,
+    )
+    try:
+        yield
+    finally:
+        if _audit is not None:
+            await _audit.close()
+        log.info("healer core stopped")
 
 
 app = FastAPI(title="K8s Node Healer", lifespan=lifespan)
@@ -53,12 +63,20 @@ def ready():
 
 
 @app.post("/snapshot")
-def ingest(snapshot: Snapshot):
+async def ingest(snapshot: Snapshot):
     if _pipeline is None:
         raise HTTPException(503, "pipeline not initialized")
-    records = _pipeline.process(snapshot)
+    records = await _pipeline.process(snapshot)
     return {
         "received": True,
+        "snapshot_id": snapshot.snapshot_id,
         "incidents": len(records),
         "records": [r.record_id for r in records],
     }
+
+
+@app.get("/metrics")
+def metrics():
+    if not settings.metrics_enabled:
+        raise HTTPException(404, "metrics disabled")
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
