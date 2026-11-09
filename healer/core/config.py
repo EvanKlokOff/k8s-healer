@@ -1,11 +1,14 @@
 # healer/core/config.py
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", extra="ignore")
 
     # --- Core ---
     kubeconfig_path: str = "/etc/healer/kubeconfig"
@@ -35,7 +38,7 @@ class Settings(BaseSettings):
     llm_provider: str = "openai_compat"
     llm_base_url: str = "http://localhost:11434/v1"
     llm_api_key: str = "ollama"
-    llm_model: str = "qwen2.5:7b-instruct"
+    llm_model: str = "qwen2.5-coder:7b"
     llm_timeout_sec: int = 60
     llm_max_tokens_per_hour: int = 100_000
 
@@ -57,3 +60,6 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if __name__ == "__main__":
+    print(BASE_DIR)
